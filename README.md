@@ -16,19 +16,41 @@ A standalone, installation-free Windows desktop application designed to perform 
 ## Tech Stack
 
 - **Python + tkinter** — native cross-platform GUI
-- **httpx** — async-capable HTTP client with redirect tracking
-- **openpyxl** — Excel export
+- **httpx** — HTTP client with redirect tracking, shared connection pool
+- **openpyxl** — Excel import/export
 - **PyInstaller** — packages everything into a single .exe
+
+---
+
+## Features
+
+- **Parallel checks** (1–32 at once) with a live progress bar and a **Stop** button
+- Configurable **timeout**, **retries** for flaky connections and **SSL verification**
+- Clear results: `200`, `404`, `503`, `TIMEOUT`, `DNS_ERR`, `SSL_ERR`, `CONN_ERR`, `REDIRECT_LOOP`,
+  plus response time, number of redirects, final URL and content type
+- Color-coded rows, summary line (OK / redirect / 4xx / 5xx / timeout / error), sortable columns,
+  double-click to open a URL, right-click to copy
+- Input: paste URLs (one per line or comma-separated, `#` comments, missing `https://` added),
+  or load **.txt / .csv / .xlsx**; duplicates and invalid lines are skipped with a notice
+- Export to **Excel** (colored, filterable, with a Summary sheet) or **CSV** (opens cleanly in Excel)
+- **Command-line mode** for scheduled checks (Task Scheduler / cron)
 
 ---
 
 ## Run from Source
 
 ```bash
-git clone https://github.com/bck-stack/python-desktop-tool
-cd python-desktop-tool
+git clone https://github.com/bck-stack/windows-business-automation-tool
+cd windows-business-automation-tool
 pip install -r requirements.txt
 python app.py
+```
+
+### Headless / scheduled
+
+```bash
+python checker.py urls.txt -o report.xlsx --workers 16 --timeout 8
+# exit code 1 when any URL is broken — easy to alert on
 ```
 
 ---
@@ -36,8 +58,10 @@ python app.py
 ## Build .EXE
 
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --windowed --name "URLHealthChecker" app.py
+build.bat
+# or manually:
+pip install -r requirements.txt -r requirements-dev.txt
+python -m PyInstaller --onefile --windowed --name URLHealthChecker app.py
 # Output: dist/URLHealthChecker.exe
 ```
 
@@ -45,21 +69,42 @@ pyinstaller --onefile --windowed --name "URLHealthChecker" app.py
 
 ## Usage
 
-1. Paste URLs into the text box (one per line)
-2. Or click **Load from file** to import a .txt list
-3. Click **Check URLs**
-4. Review color-coded results
+1. Paste URLs into the text box, or click **Load file** to import a .txt / .csv / .xlsx list
+2. Adjust **Timeout**, **Parallel** and **Retries** if needed
+3. Click **Check URLs** (click **Stop** to cancel)
+4. Review the color-coded results — click a column header to sort
 5. Export with **Export Excel** or **Export CSV**
 
 ---
 
 ## Example Output
 
-| URL | Status | Time (ms) | Final URL |
-|-----|--------|-----------|-----------|
-| https://example.com | 200 | 142.3 | https://example.com/ |
-| https://httpbin.org/status/404 | 404 | 310.1 | https://httpbin.org/status/404 |
-| https://broken-site.xyz | CONN_ERR | -1 | — |
+| URL | Status | Time (ms) | Redirects | Final URL |
+|-----|--------|-----------|-----------|-----------|
+| https://example.com | 200 | 142.3 | 0 | https://example.com/ |
+| https://github.com/login/ | 200 | 380.5 | 1 | https://github.com/login |
+| https://httpbin.org/status/404 | 404 | 310.1 | 0 | https://httpbin.org/status/404 |
+| https://broken-site.xyz | DNS_ERR | — | 0 | — |
+
+---
+
+## Project Structure
+
+```
+├── app.py          # tkinter GUI (worker threads talk to the UI through a queue)
+├── checker.py      # checking engine, file import, Excel/CSV export, CLI
+├── build.bat       # one-click .exe build
+├── tests/          # pytest (mocked HTTP, no network needed)
+├── requirements.txt
+└── requirements-dev.txt
+```
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
 
 ---
 
